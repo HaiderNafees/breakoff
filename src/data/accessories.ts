@@ -1,0 +1,111 @@
+import type { Product } from './types';
+
+export const accessories: Product[] = [
+  {
+    slug: 'black-leather-tote',
+    name: 'Black Leather Tote',
+    category: 'accessories',
+    collection: 'Bags',
+    price: 12900,
+    badge: 'New',
+    colorway: 'Black',
+    silhouette: 'tote',
+    tone: 'dark',
+    sizes: ['One size'],
+    fabric: 'Full-grain leather',
+    description:
+      'An unlined tote in full-grain leather, cut from a single panel with a flat base. Softens and darkens with use.',
+    details: [
+      '38 cm wide, 34 cm high, 12 cm deep',
+      'Full-grain vegetable-tanned leather',
+      'Fits a 15-inch laptop',
+      'Unlined, raw interior',
+      'Hand-finished edges',
+    ],
+    care: ['Wipe with a dry cloth', 'Condition every six months', 'Keep dry and stuffed'],
+  },
+  {
+    slug: 'ivory-silk-scarf',
+    name: 'Ivory Silk Scarf',
+    category: 'accessories',
+    collection: 'Accessories',
+    price: 4900,
+    colorway: 'Ivory',
+    silhouette: 'scarf',
+    tone: 'light',
+    sizes: ['One size'],
+    fabric: 'Mulberry silk twill',
+    description:
+      'A square silk twill scarf with a hand-rolled edge. Printed in a single tonal ink so the pattern reads as texture.',
+    details: ['90 cm by 90 cm', 'Mulberry silk twill', 'Hand-rolled hem', 'Tonal ink print'],
+    care: ['Dry clean only', 'Store folded in tissue', 'Avoid perfume contact'],
+  },
+  {
+    slug: 'monochrome-pashmina',
+    name: 'Monochrome Pashmina',
+    category: 'accessories',
+    collection: 'Accessories',
+    price: 14900,
+    badge: 'Limited',
+    colorway: 'Natural',
+    silhouette: 'scarf',
+    tone: 'light',
+    sizes: ['One size'],
+    fabric: 'Hand-loomed pashmina',
+    description:
+      'Woven on hand looms from fine pashmina, undyed and finished with a hand-twisted fringe. Warm without weight.',
+    details: [
+      '200 cm by 70 cm',
+      '100% pashmina, undyed',
+      'Hand-twisted fringe',
+      'Woven in a single piece',
+    ],
+    care: ['Dry clean only', 'Fold rather than hang', 'Store with cedar'],
+  },
+];
+
+export const essentials: Product[] = [
+  {
+    slug: 'white-heavyweight-tee',
+    name: 'White Heavyweight Tee',
+    category: 'essentials',
+    collection: 'Essentials',
+    price: 2900,
+    colorway: 'White',
+    silhouette: 'tee',
+    tone: 'light',
+    sizes: ['XS', 'S', 'M', 'L', 'XL'],
+    fabric: '260 gsm cotton jersey',
+    description:
+      'A heavyweight cotton tee with a ribbed collar that holds its shape. Cut straight with a slightly longer body.',
+    details: [
+      'Regular fit, straight body',
+      '260 gsm combed cotton',
+      'Double-stitched hem',
+      'Pre-shrunk and garment washed',
+    ],
+    care: ['Machine wash cold', 'Tumble dry low', 'Do not bleach'],
+  },
+  {
+    slug: 'black-heavyweight-tee',
+    name: 'Black Heavyweight Tee',
+    category: 'essentials',
+    collection: 'Essentials',
+    price: 2900,
+    badge: 'New',
+    colorway: 'Black',
+    silhouette: 'tee',
+    tone: 'dark',
+    sizes: ['XS', 'S', 'M', 'L', 'XL'],
+    fabric: '260 gsm cotton jersey',
+    description:
+      'The same heavyweight jersey in a deep reactive black that resists fading. A plain tee treated as a garment.',
+    details: [
+      'Regular fit, straight body',
+      '260 gsm combed cotton',
+      'Reactive-dyed black',
+      'Double-stitched hem',
+    ],
+    care: ['Machine wash cold', 'Wash with like colours', 'Tumble dry low'],
+  },
+];
