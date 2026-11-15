@@ -1,50 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import type { Address, Order, User } from '@/lib/types';
 
-export type OrderLine = {
-  slug: string;
-  name: string;
-  size: string;
-  qty: number;
-  price: number;
-  image?: string;
-};
-
-export type Address = {
-  id: string;
-  label: string;
-  name: string;
-  phone: string;
-  line1: string;
-  line2?: string;
-  city: string;
-  province: string;
-  postal: string;
-};
-
-export type Order = {
-  id: string;
-  placedAt: string;
-  lines: OrderLine[];
-  subtotal: number;
-  shipping: number;
-  total: number;
-  email: string;
-  address: Address;
-  delivery: string;
-  payment: 'Card' | 'Cash on delivery';
-  status: 'Confirmed' | 'Packed' | 'Delivered';
-};
-
-export type User = {
-  id: string;
-  name: string;
-  email: string;
-  passwordHash: string;
-  createdAt: string;
-  orders: Order[];
-  addresses: Address[];
-};
+export type { Address, Order, OrderLine, User, OrderStatus } from '@/lib/types';
 
 type Result = { error?: string };
 
@@ -53,51 +11,32 @@ type AccountValue = {
   ready: boolean;
   signUp: (name: string, email: string, password: string) => Promise<Result>;
   signIn: (email: string, password: string) => Promise<Result>;
-  signOut: () => void;
-  updateProfile: (patch: { name?: string }) => Result;
-  saveAddress: (address: Address) => Result;
-  removeAddress: (id: string) => void;
-  addOrder: (order: Order) => void;
+  signOut: () => Promise<void>;
+  updateProfile: (patch: { name: string }) => Promise<Result>;
+  saveAddress: (address: Address) => Promise<Result>;
+  removeAddress: (id: string) => Promise<Result>;
+  refresh: () => Promise<void>;
 };
 
-const USERS_KEY = 'breakoff:users:v1';
-const SESSION_KEY = 'breakoff:session:v1';
 const AccountContext = createContext<AccountValue | null>(null);
 
-type UserRecord = Record<string, User>;
+type ApiResponse = { user?: User | null; error?: string };
 
-function readUsers(): UserRecord {
+async function call(
+  url: string,
+  init?: RequestInit
+): Promise<ApiResponse & { ok: boolean }> {
   try {
-    const raw = window.localStorage.getItem(USERS_KEY);
-    if (!raw) return {};
-    const parsed: unknown = JSON.parse(raw);
-    if (parsed && typeof parsed === 'object') return parsed as UserRecord;
+    const response = await fetch(url, {
+      credentials: 'same-origin',
+      headers: init?.body ? { 'Content-Type': 'application/json' } : undefined,
+      ...init,
+    });
+    const data = (await response.json().catch(() => ({}))) as ApiResponse;
+    return { ...data, ok: response.ok };
   } catch {
-    // ignore corrupted storage
+    return { ok: false, error: 'We could not reach the server. Check your connection.' };
   }
-  return {};
-}
-
-function writeUsers(users: UserRecord) {
-  try {
-    window.localStorage.setItem(USERS_KEY, JSON.stringify(users));
-  } catch {
-    // storage unavailable
-  }
-}
-
-/** Demo-only credential digest. A real deployment must hash server-side. */
-async function digest(value: string): Promise<string> {
-  const data = new TextEncoder().encode(`breakoff:${value.toLowerCase()}`);
-  if (typeof crypto !== 'undefined' && crypto.subtle) {
-    const hash = await crypto.subtle.digest('SHA-256', data);
-    return Array.from(new Uint8Array(hash))
-      .map((byte) => byte.toString(16).padStart(2, '0'))
-      .join('');
-  }
-  let acc = 0;
-  for (const byte of data) acc = (acc * 31 + byte) >>> 0;
-  return `fallback-${acc.toString(16)}`;
 }
 
 export function displayName(user: User): string {
@@ -108,128 +47,75 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
 
-  useEffect(() => {
-    try {
-      const email = window.localStorage.getItem(SESSION_KEY);
-      if (email) {
-        const users = readUsers();
-        if (users[email.toLowerCase()]) setUser(users[email.toLowerCase()]);
-      }
-    } catch {
-      // ignore
-    }
+  const refresh = useCallback(async () => {
+    const result = await call('/api/auth/me');
+    if (result.ok) setUser(result.user ?? null);
     setReady(true);
   }, []);
 
-  const persist = useCallback((next: User) => {
-    const users = readUsers();
-    users[next.email.toLowerCase()] = next;
-    writeUsers(users);
-    try {
-      window.localStorage.setItem(SESSION_KEY, next.email.toLowerCase());
-    } catch {
-      // ignore
-    }
-    setUser(next);
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const signUp = useCallback(async (name: string, email: string, password: string): Promise<Result> => {
+    const result = await call('/api/auth/signup', {
+      method: 'POST',
+      body: JSON.stringify({ name, email, password }),
+    });
+    if (!result.ok || !result.user) return { error: result.error ?? 'Could not create your account.' };
+    setUser(result.user);
+    setReady(true);
+    return {};
   }, []);
 
-  const signUp = useCallback(
-    async (name: string, email: string, password: string): Promise<Result> => {
-      const cleanEmail = email.trim().toLowerCase();
-      if (!name.trim()) return { error: 'Please add your name.' };
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cleanEmail)) {
-        return { error: 'Enter a valid email address.' };
-      }
-      if (password.length < 6) return { error: 'Use at least 6 characters for your password.' };
-      const users = readUsers();
-      if (users[cleanEmail]) return { error: 'An account with this email already exists.' };
-      const next: User = {
-        id: `u_${Date.now().toString(36)}`,
-        name: name.trim(),
-        email: cleanEmail,
-        passwordHash: await digest(password),
-        createdAt: new Date().toISOString(),
-        orders: [],
-        addresses: [],
-      };
-      persist(next);
-      return {};
-    },
-    [persist]
-  );
+  const signIn = useCallback(async (email: string, password: string): Promise<Result> => {
+    const result = await call('/api/auth/signin', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+    if (!result.ok || !result.user) return { error: result.error ?? 'Could not sign you in.' };
+    setUser(result.user);
+    setReady(true);
+    return {};
+  }, []);
 
-  const signIn = useCallback(
-    async (email: string, password: string): Promise<Result> => {
-      const cleanEmail = email.trim().toLowerCase();
-      const users = readUsers();
-      const found = users[cleanEmail];
-      if (!found) return { error: 'No account found with that email.' };
-      const hash = await digest(password);
-      if (found.passwordHash !== hash) return { error: 'That password does not match.' };
-      try {
-        window.localStorage.setItem(SESSION_KEY, cleanEmail);
-      } catch {
-        // ignore
-      }
-      setUser(found);
-      return {};
-    },
-    []
-  );
-
-  const signOut = useCallback(() => {
-    try {
-      window.localStorage.removeItem(SESSION_KEY);
-    } catch {
-      // ignore
-    }
+  const signOut = useCallback(async () => {
+    await call('/api/auth/signout', { method: 'POST' });
     setUser(null);
   }, []);
 
-  const updateProfile = useCallback(
-    (patch: { name?: string }): Result => {
-      if (!user) return { error: 'You are not signed in.' };
-      if (patch.name !== undefined && !patch.name.trim()) return { error: 'Name cannot be empty.' };
-      const next: User = { ...user, ...patch };
-      persist(next);
-      return {};
-    },
-    [user, persist]
-  );
+  const updateProfile = useCallback(async (patch: { name: string }): Promise<Result> => {
+    const result = await call('/api/auth/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    });
+    if (!result.ok || !result.user) return { error: result.error ?? 'Could not save your name.' };
+    setUser(result.user);
+    return {};
+  }, []);
 
-  const saveAddress = useCallback(
-    (address: Address): Result => {
-      if (!user) return { error: 'Sign in to save an address.' };
-      const exists = user.addresses.some((item) => item.id === address.id);
-      const addresses = exists
-        ? user.addresses.map((item) => (item.id === address.id ? address : item))
-        : [...user.addresses, address];
-      const next: User = { ...user, addresses };
-      persist(next);
-      return {};
-    },
-    [user, persist]
-  );
+  const saveAddress = useCallback(async (address: Address): Promise<Result> => {
+    const result = await call('/api/account/addresses', {
+      method: 'POST',
+      body: JSON.stringify(address),
+    });
+    if (!result.ok || !result.user) return { error: result.error ?? 'Could not save that address.' };
+    setUser(result.user);
+    return {};
+  }, []);
 
-  const removeAddress = useCallback(
-    (id: string) => {
-      if (!user) return;
-      persist({ ...user, addresses: user.addresses.filter((item) => item.id !== id) });
-    },
-    [user, persist]
-  );
-
-  const addOrder = useCallback(
-    (order: Order) => {
-      if (!user) return;
-      persist({ ...user, orders: [order, ...user.orders] });
-    },
-    [user, persist]
-  );
+  const removeAddress = useCallback(async (id: string): Promise<Result> => {
+    const result = await call(`/api/account/addresses?id=${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    if (!result.ok || !result.user) return { error: result.error ?? 'Could not remove that address.' };
+    setUser(result.user);
+    return {};
+  }, []);
 
   const value = useMemo<AccountValue>(
-    () => ({ user, ready, signUp, signIn, signOut, updateProfile, saveAddress, removeAddress, addOrder }),
-    [user, ready, signUp, signIn, signOut, updateProfile, saveAddress, removeAddress, addOrder]
+    () => ({ user, ready, signUp, signIn, signOut, updateProfile, saveAddress, removeAddress, refresh }),
+    [user, ready, signUp, signIn, signOut, updateProfile, saveAddress, removeAddress, refresh]
   );
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;

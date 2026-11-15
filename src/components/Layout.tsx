@@ -239,6 +239,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           <div className="footer__col">
             <h4 className="footer__heading">Help</h4>
             <Link href="/care">Shipping</Link>
+            <Link href="/track">Track an order</Link>
             <Link href="/care#returns">Returns</Link>
             <Link href="/care#sizing">Size guide</Link>
             <Link href="/care#faq">FAQ</Link>

@@ -87,20 +87,20 @@ export default function AccountDashboard() {
 
   const latest = user.orders[0];
 
-  function submitAddress(event: FormEvent) {
+  async function submitAddress(event: FormEvent) {
     event.preventDefault();
     if (!addr.name || !addr.line1 || !addr.city || !addr.phone) {
       setAddrMessage('Name, phone, address and city are required.');
       return;
     }
-    const result = saveAddress({ ...addr, id: addr.id || `a_${Date.now().toString(36)}` });
+    const result = await saveAddress({ ...addr, id: addr.id || `a_${Date.now().toString(36)}` });
     setAddrMessage(result.error ?? 'Address saved.');
     if (!result.error) setAddr(emptyAddress());
   }
 
-  function submitName(event: FormEvent) {
+  async function submitName(event: FormEvent) {
     event.preventDefault();
-    const result = updateProfile({ name: nameDraft });
+    const result = await updateProfile({ name: nameDraft });
     setNameMessage(result.error ?? 'Name updated.');
   }
 
@@ -154,7 +154,14 @@ export default function AccountDashboard() {
           </nav>
           <div className="dash__side-foot">
             <p className="dash__email">{user.email}</p>
-            <button type="button" className="dash__signout" onClick={() => { signOut(); router.push('/'); }}>
+            <button
+              type="button"
+              className="dash__signout"
+              onClick={async () => {
+                await signOut();
+                router.push('/');
+              }}
+            >
               Sign out
             </button>
           </div>
@@ -452,7 +459,7 @@ export default function AccountDashboard() {
                   <h3 className="dash__subtitle">Sign out</h3>
                   <p className="dash__meta">You will need your email and password to return.</p>
                 </div>
-                <button type="button" className="btn btn--outline" onClick={signOut}>
+                <button type="button" className="btn btn--outline" onClick={() => void signOut()}>
                   Sign out
                 </button>
               </div>

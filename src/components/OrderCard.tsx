@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { formatPrice, getProduct } from '@/data';
-import type { Order } from '@/lib/account';
+import type { Order } from '@/lib/types';
+import { DELIVERY_LABEL, PAYMENT_LABEL, STATUS_LABEL } from '@/lib/types';
 
 export function orderDate(value: string): string {
   return new Date(value).toLocaleDateString('en-GB', {
@@ -18,7 +19,9 @@ export default function OrderCard({ order }: { order: Order }) {
           <p className="order__id">Order {order.id}</p>
           <p className="order__date">{orderDate(order.placedAt)}</p>
         </div>
-        <span className="order__status">{order.status}</span>
+        <span className={`order__status order__status--${order.status}`}>
+          {STATUS_LABEL[order.status]}
+        </span>
       </header>
 
       <ul className="order__lines">
@@ -51,13 +54,29 @@ export default function OrderCard({ order }: { order: Order }) {
 
       <footer className="order__foot">
         <p className="order__meta">
-          {order.delivery} · {order.payment} · {order.address.city}
+          {DELIVERY_LABEL[order.delivery]} · {PAYMENT_LABEL[order.payment]} · {order.address.city}
         </p>
         <p className="order__total">
           <span>Total</span>
           <strong>{formatPrice(order.total)}</strong>
         </p>
       </footer>
+
+      <div className="order__track">
+        <span className="order__track-label">
+          {order.status === 'delivered'
+            ? 'Delivered — 14-day returns apply'
+            : order.trackingNumber
+              ? `Tracking ${order.trackingNumber}`
+              : 'Track this order'}
+        </span>
+        <Link
+          href={`/track?number=${encodeURIComponent(order.id)}`}
+          className="link-underline link-underline--sm"
+        >
+          Follow its progress
+        </Link>
+      </div>
     </article>
   );
 }

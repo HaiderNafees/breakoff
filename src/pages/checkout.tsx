@@ -1,26 +1,30 @@
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import OrderCard from '@/components/OrderCard';
+import OrderTimeline from '@/components/OrderTimeline';
 import Photo from '@/components/Photo';
 import Seo from '@/components/Seo';
 import { formatPrice, getProduct } from '@/data';
-import { useAccount, type Address, type Order } from '@/lib/account';
+import { useAccount } from '@/lib/account';
 import { FREE_SHIPPING_THRESHOLD, useCart } from '@/lib/cart';
-
-type Delivery = 'standard' | 'express';
-type Payment = 'card' | 'cod';
+import { DELIVERY_FEE, shippingFor } from '@/lib/shipping';
+import type { DeliveryMethod, Order, PaymentMethod } from '@/lib/types';
 
 const PROVINCES = ['Punjab', 'Sindh', 'Khyber Pakhtunkhwa', 'Balochistan', 'Islamabad'];
 const LAST_ORDER_KEY = 'breakoff:last-order:v1';
-const DELIVERY_FEE: Record<Delivery, number> = { standard: 350, express: 650 };
 
-function newId(): string {
-  return `BO-${Date.now().toString(36).toUpperCase().slice(-6)}`;
+type CheckoutProps = { stripeEnabled: boolean };
+
+/** Lets the page say whether real card payments are live, without shipping a secret to the browser. */
+export async function getServerSideProps() {
+  return { props: { stripeEnabled: Boolean(process.env.STRIPE_SECRET_KEY) } };
 }
 
-export default function CheckoutPage() {
+export default function CheckoutPage({ stripeEnabled }: CheckoutProps) {
   const { lines, subtotal, clear, ready } = useCart();
-  const { user, addOrder } = useAccount();
+  const { user, refresh } = useAccount();
+  const router = useRouter();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [email, setEmail] = useState('');
@@ -32,14 +36,17 @@ export default function CheckoutPage() {
   const [city, setCity] = useState('');
   const [province, setProvince] = useState('Punjab');
   const [postal, setPostal] = useState('');
-  const [delivery, setDelivery] = useState<Delivery>('standard');
-  const [payment, setPayment] = useState<Payment>('card');
+  const [delivery, setDelivery] = useState<DeliveryMethod>('standard');
+  const [payment, setPayment] = useState<PaymentMethod>('card');
   const [cardNumber, setCardNumber] = useState('');
   const [cardName, setCardName] = useState('');
   const [expiry, setExpiry] = useState('');
   const [cvc, setCvc] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [placed, setPlaced] = useState<Order | null>(null);
+  const [placing, setPlacing] = useState(false);
+  const [orderError, setOrderError] = useState('');
+  const cancelled = router.query.payment === 'cancelled';
 
   // Prefill from the signed-in account
   useEffect(() => {
@@ -70,7 +77,7 @@ export default function CheckoutPage() {
     }
   }, [ready, lines.length]);
 
-  const shipping = delivery === 'express' || subtotal < FREE_SHIPPING_THRESHOLD ? DELIVERY_FEE[delivery] : 0;
+  const shipping = shippingFor(subtotal, delivery);
   const total = subtotal + shipping;
 
   const summaryLines = useMemo(
@@ -126,56 +133,62 @@ export default function CheckoutPage() {
     else if (step === 1) setStep(2);
   }
 
-  function placeOrder() {
+  async function placeOrder() {
+    if (placing) return;
+    setOrderError('');
     const found: Record<string, string> = {};
-    collectPayment(found);
+    // With Stripe the card fields are not ours and live on Stripe's page.
+    if (!stripeEnabled) collectPayment(found);
     setErrors(found);
     if (Object.keys(found).length > 0) return;
-    const address: Address = {
-      id: `checkout_${Date.now().toString(36)}`,
-      label: 'Checkout',
-      name: `${firstName} ${lastName}`.trim(),
-      phone,
-      line1,
-      line2,
-      city,
-      province,
-      postal,
-    };
 
-    const order: Order = {
-      id: newId(),
-      placedAt: new Date().toISOString(),
-      lines: lines.map((line) => {
-        const product = getProduct(line.slug);
-        return {
-          slug: line.slug,
-          name: product?.name ?? line.slug,
-          size: line.size,
-          qty: line.qty,
-          price: product?.price ?? 0,
-          image: product?.images?.[0],
-        };
-      }),
-      subtotal,
-      shipping,
-      total,
-      email: email.trim().toLowerCase(),
-      address,
-      delivery: delivery === 'express' ? 'Express delivery, 1–2 working days' : 'Standard delivery, 2–4 working days',
-      payment: payment === 'card' ? 'Card' : 'Cash on delivery',
-      status: 'Confirmed',
-    };
-
-    if (user) addOrder(order);
+    setPlacing(true);
     try {
-      window.sessionStorage.setItem(LAST_ORDER_KEY, JSON.stringify(order));
+      const response = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          firstName,
+          lastName,
+          phone,
+          line1,
+          line2,
+          city,
+          province,
+          postal,
+          delivery,
+          payment,
+          lines: lines.map((line) => ({ slug: line.slug, size: line.size, qty: line.qty })),
+        }),
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        order?: Order;
+        checkoutUrl?: string | null;
+        error?: string;
+      };
+      if (!response.ok || !data.order) {
+        setOrderError(data.error ?? 'We could not place that order. Please try again.');
+        return;
+      }
+      if (data.checkoutUrl) {
+        window.location.assign(data.checkoutUrl);
+        return;
+      }
+      try {
+        window.sessionStorage.setItem(LAST_ORDER_KEY, JSON.stringify(data.order));
+      } catch {
+        // ignore
+      }
+      setPlaced(data.order);
+      clear();
+      await refresh();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch {
-      // ignore
+      setOrderError('We could not reach the server, so nothing was charged. Please try again.');
+    } finally {
+      setPlacing(false);
     }
-    setPlaced(order);
-    clear();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   if (placed) {
@@ -197,35 +210,29 @@ export default function CheckoutPage() {
           <div className="checkout-done__body">
             <OrderCard order={placed} />
             <aside className="checkout-done__side">
-              <h2 className="dash__title">What happens next</h2>
-              <ol className="steps-list">
-                <li>
-                  <strong>Confirmed</strong>
-                  <span>We have your order and payment preference.</span>
-                </li>
-                <li>
-                  <strong>Packed in Lahore</strong>
-                  <span>Within 48 hours, wrapped in recycled tissue.</span>
-                </li>
-                <li>
-                  <strong>On its way</strong>
-                  <span>Tracking follows by email. 14-day returns apply.</span>
-                </li>
-              </ol>
+              <h2 className="dash__title">Tracking</h2>
+              <OrderTimeline order={placed} />
               <p className="checkout__demo">
-                Demo checkout. No payment was taken — connect a payment provider to charge cards.
+                {placed.paymentStatus === 'paid'
+                  ? 'Payment received. A receipt has been prepared for your email.'
+                  : placed.payment === 'cod'
+                    ? `Pay ${formatPrice(placed.total)} to the courier when your parcel arrives.`
+                    : 'Demo checkout — no payment provider is connected, so no card was charged.'}
               </p>
               <div className="checkout-done__actions">
+                <Link href={`/track?number=${placed.id}`} className="btn btn--solid btn--block">
+                  Track this order
+                </Link>
                 {user ? (
-                  <Link href="/account?tab=orders" className="btn btn--solid btn--block">
+                  <Link href="/account?tab=orders" className="btn btn--outline btn--block">
                     View in your account
                   </Link>
                 ) : (
-                  <Link href="/account/signup" className="btn btn--solid btn--block">
-                    Create an account to track it
+                  <Link href="/account/signup" className="btn btn--outline btn--block">
+                    Create an account to keep it
                   </Link>
                 )}
-                <Link href="/shop" className="btn btn--outline btn--block">
+                <Link href="/shop" className="link-underline link-underline--sm">
                   Continue shopping
                 </Link>
               </div>
@@ -291,8 +298,16 @@ export default function CheckoutPage() {
             ))}
           </ol>
 
+          {cancelled ? (
+            <p className="form__error" role="alert">
+              Payment was cancelled and nothing was charged. Your bag is still here.
+            </p>
+          ) : null}
+
           <p className="checkout__demo">
-            Demo checkout — no payment provider is connected yet, so no card is charged.
+            {stripeEnabled
+              ? 'Card payments are collected on Stripe’s secure page. We never see your card details.'
+              : 'Demo checkout — no payment provider is connected yet, so no card is charged.'}
           </p>
 
           {step === 1 ? (
@@ -515,7 +530,14 @@ export default function CheckoutPage() {
                 </label>
               </div>
 
-              {payment === 'card' ? (
+              {payment === 'card' && stripeEnabled ? (
+                <p className="review__address">
+                  You will be taken to Stripe to enter your card details, then returned here with a
+                  confirmation. Nothing is charged until you approve it there.
+                </p>
+              ) : null}
+
+              {payment === 'card' && !stripeEnabled ? (
                 <div className="card-form">
                   <div className="field">
                     <label htmlFor="cardNumber">Card number</label>
@@ -581,15 +603,27 @@ export default function CheckoutPage() {
                     </div>
                   </div>
                 </div>
-              ) : (
+              ) : null}
+
+              {payment !== 'card' ? (
                 <p className="review__address">
                   You will pay {formatPrice(total)} to the courier on arrival. Please keep the exact amount ready.
                 </p>
-              )}
+              ) : null}
+
+              {orderError ? (
+                <p className="form__error" role="alert">
+                  {orderError}
+                </p>
+              ) : null}
 
               <div className="form__actions">
-                <button type="submit" className="btn btn--solid">
-                  Place order · {formatPrice(total)}
+                <button type="submit" className="btn btn--solid" disabled={placing}>
+                  {placing
+                    ? 'Placing your order…'
+                    : stripeEnabled && payment === 'card'
+                      ? `Pay with card · ${formatPrice(total)}`
+                      : `Place order · ${formatPrice(total)}`}
                 </button>
                 <button type="button" className="btn btn--outline" onClick={() => setStep(2)}>
                   Back

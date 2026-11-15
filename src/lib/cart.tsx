@@ -1,6 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { getProduct, products } from '@/data';
+import { FREE_SHIPPING_THRESHOLD } from '@/lib/shipping';
+
+export { FREE_SHIPPING_THRESHOLD };
 
 export type CartLine = { slug: string; size: string; qty: number };
 
@@ -17,8 +20,6 @@ type CartContextValue = {
 
 const STORAGE_KEY = 'breakoff:cart:v1';
 const CartContext = createContext<CartContextValue | null>(null);
-
-export const FREE_SHIPPING_THRESHOLD = 10000;
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [lines, setLines] = useState<CartLine[]>([]);

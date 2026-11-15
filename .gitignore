@@ -19,3 +19,6 @@
 # environment
 .env
 .env.local
+
+# local account + order store
+/.data

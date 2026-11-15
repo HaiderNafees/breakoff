@@ -1,8 +1,84 @@
 import Link from 'next/link';
+import HeroCarousel, { type HeroSlide } from '@/components/HeroCarousel';
 import Photo from '@/components/Photo';
 import ProductCard from '@/components/ProductCard';
 import Seo from '@/components/Seo';
 import { categories, EDITORIAL, formatPrice, products } from '@/data';
+
+const HERO_SLIDES: HeroSlide[] = [
+  {
+    image: EDITORIAL.hero,
+    eyebrow: 'Autumn / Winter 26',
+    title: (
+      <>
+        Cut from
+        <br />
+        a single line.
+      </>
+    ),
+    sub: 'Black and white, nothing between. Kurtas, tailoring and leatherwear made in small runs and built to be worn until they show.',
+    silhouette: 'coat',
+    tone: 'dark',
+    cta: (
+      <>
+        <Link href="/shop" className="btn btn--solid-light">
+          Shop the collection
+        </Link>
+        <Link href="/about" className="btn btn--ghost-light">
+          The studio
+        </Link>
+      </>
+    ),
+  },
+  {
+    image: '/img/coat-man.jpg',
+    eyebrow: 'The outerwear study',
+    title: (
+      <>
+        Black,
+        <br />
+        nothing else.
+      </>
+    ),
+    sub: 'Leather, wool and a shoulder cut soft. Outerwear with the hardware left visible, finished by hand in Lahore.',
+    silhouette: 'coat',
+    tone: 'dark',
+    cta: (
+      <>
+        <Link href="/shop?category=men" className="btn btn--solid-light">
+          Shop outerwear
+        </Link>
+        <Link href="/shop?sort=new" className="btn btn--ghost-light">
+          New arrivals
+        </Link>
+      </>
+    ),
+  },
+  {
+    image: '/img/street-shopping.jpg',
+    eyebrow: 'Everyday uniforms',
+    title: (
+      <>
+        Made to
+        <br />
+        be worn.
+      </>
+    ),
+    sub: 'The pieces that do the work every day — heavy jersey, wide trousers and a bag that holds everything.',
+    silhouette: 'tee',
+    tone: 'light',
+    cta: (
+      <>
+        <Link href="/shop?category=essentials" className="btn btn--solid-light">
+          Shop essentials
+        </Link>
+        <Link href="/shop?category=accessories" className="btn btn--ghost-light">
+          Accessories
+        </Link>
+      </>
+    ),
+  },
+];
 
 const featured = [
   ...products.filter((product) => product.badge === 'New'),
@@ -21,43 +97,7 @@ export default function Home() {
         description="BreakOff is a monochrome wardrobe of kurtas, tailoring, leather and silk. Black and white only, cut in small runs in Pakistan."
       />
 
-      <section className="hero">
-        <div className="hero__art" aria-hidden="true">
-          <Photo
-            images={[EDITORIAL.hero]}
-            silhouette="coat"
-            tone="dark"
-            alt=""
-            priority
-            sizes="100vw"
-          />
-        </div>
-        <div className="hero__inner">
-          <p className="eyebrow eyebrow--light">Autumn / Winter 26</p>
-          <h1 className="hero__title">
-            Cut from
-            <br />
-            a single line.
-          </h1>
-          <p className="hero__sub">
-            Black and white, nothing between. Kurtas, tailoring and leatherwear made in small runs
-            and built to be worn until they show.
-          </p>
-          <div className="hero__cta">
-            <Link href="/shop" className="btn btn--solid-light">
-              Shop the collection
-            </Link>
-            <Link href="/about" className="btn btn--ghost-light">
-              The studio
-            </Link>
-          </div>
-          <ul className="hero__meta">
-            <li>Small-run production</li>
-            <li>Natural fibres</li>
-            <li>Made in Pakistan</li>
-          </ul>
-        </div>
-      </section>
+      <HeroCarousel slides={HERO_SLIDES} />
 
       <section className="strip">
         <div className="strip__item">
