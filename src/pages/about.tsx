@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import Media from '@/components/Media';
+import Photo from '@/components/Photo';
 import Seo from '@/components/Seo';
+import { EDITORIAL } from '@/data';
 
 export default function About() {
   return (
@@ -20,8 +21,15 @@ export default function About() {
             finish — the things a garment is actually made of.
           </p>
         </div>
-        <div className="about-hero__art" aria-hidden="true">
-          <Media silhouette="kurta" tone="light" />
+        <div className="about-hero__art">
+          <Photo
+            images={[EDITORIAL.studio]}
+            silhouette="kurta"
+            tone="light"
+            alt="Inside the BreakOff studio, rails of black and white clothing"
+            priority
+            sizes="(max-width: 860px) 100vw, 45vw"
+          />
         </div>
       </section>
 
@@ -45,7 +53,13 @@ export default function About() {
 
       <section className="editorial editorial--light" id="materials">
         <div className="editorial__art" aria-hidden="true">
-          <Media silhouette="coat" tone="light" />
+          <Photo
+            images={[EDITORIAL.materials]}
+            silhouette="coat"
+            tone="light"
+            alt=""
+            sizes="(max-width: 860px) 100vw, 50vw"
+          />
         </div>
         <div className="editorial__copy">
           <p className="eyebrow">Materials</p>

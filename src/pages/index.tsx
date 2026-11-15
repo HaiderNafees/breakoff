@@ -1,8 +1,8 @@
 import Link from 'next/link';
-import Media from '@/components/Media';
+import Photo from '@/components/Photo';
 import ProductCard from '@/components/ProductCard';
 import Seo from '@/components/Seo';
-import { categories, formatPrice, products } from '@/data';
+import { categories, EDITORIAL, formatPrice, products } from '@/data';
 
 const featured = [
   ...products.filter((product) => product.badge === 'New'),
@@ -23,7 +23,14 @@ export default function Home() {
 
       <section className="hero">
         <div className="hero__art" aria-hidden="true">
-          <Media silhouette="coat" tone="dark" />
+          <Photo
+            images={[EDITORIAL.hero]}
+            silhouette="coat"
+            tone="dark"
+            alt=""
+            priority
+            sizes="100vw"
+          />
         </div>
         <div className="hero__inner">
           <p className="eyebrow eyebrow--light">Autumn / Winter 26</p>
@@ -78,7 +85,8 @@ export default function Home() {
           {categories.map((category) => (
             <Link key={category.key} href={`/shop?category=${category.key}`} className="cat">
               <div className="cat__art">
-                <Media
+                <Photo
+                  images={[EDITORIAL.categories[category.key] ?? EDITORIAL.hero]}
                   silhouette={
                     category.key === 'accessories'
                       ? 'tote'
@@ -89,7 +97,8 @@ export default function Home() {
                           : 'kurta'
                   }
                   tone={category.key === 'men' || category.key === 'accessories' ? 'dark' : 'light'}
-                  label={category.label}
+                  alt={category.label}
+                  sizes="(max-width: 600px) 50vw, 25vw"
                 />
               </div>
               <div className="cat__label">
@@ -117,7 +126,13 @@ export default function Home() {
 
       <section className="editorial">
         <div className="editorial__art" aria-hidden="true">
-          <Media silhouette="scarf" tone="dark" />
+          <Photo
+            images={[EDITORIAL.editorial]}
+            silhouette="scarf"
+            tone="dark"
+            alt=""
+            sizes="(max-width: 860px) 100vw, 50vw"
+          />
         </div>
         <div className="editorial__copy">
           <p className="eyebrow">The study</p>
@@ -154,7 +169,7 @@ export default function Home() {
           <p className="eyebrow">Autumn / Winter 26</p>
           <h2 className="closer__title">Built in black, finished in white.</h2>
           <p className="closer__sub">
-            Eighteen pieces, no colourways. Prices from {formatPrice(2900)}.
+            {products.length} pieces, no colourways. Prices from {formatPrice(2900)}.
           </p>
           <Link href="/shop" className="btn btn--solid">
             Shop all pieces

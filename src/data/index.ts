@@ -1,11 +1,18 @@
 import { accessories, essentials } from './accessories';
+import { PRODUCT_IMAGES } from './images';
 import { men } from './men';
 import type { Category, Product } from './types';
 import { women } from './women';
 
 export type { Category, Product, Silhouette } from './types';
+export { EDITORIAL } from './images';
 
-export const products: Product[] = [...women, ...men, ...accessories, ...essentials];
+export const products: Product[] = [
+  ...women,
+  ...men,
+  ...accessories,
+  ...essentials,
+].map((product) => ({ ...product, images: PRODUCT_IMAGES[product.slug] ?? [] }));
 
 export const categories: { key: Category; label: string; blurb: string }[] = [
   { key: 'women', label: 'Women', blurb: 'Pret, tailoring and hand embroidery' },

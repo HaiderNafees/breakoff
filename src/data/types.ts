@@ -25,5 +25,6 @@ export type Product = {
   description: string;
   details: string[];
   care: string[];
-  image?: string;
+  /** Gallery photography, resolved from src/data/images.ts */
+  images?: string[];
 };

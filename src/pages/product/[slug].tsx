@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import type { GetStaticPaths, GetStaticProps } from 'next';
 import { useState } from 'react';
-import Media from '@/components/Media';
-import ProductCard from '@/components/ProductCard';
+import Photo from '@/components/Photo';
+import ProductCard, { Heart } from '@/components/ProductCard';
 import Seo from '@/components/Seo';
 import { formatPrice, getProduct, products, relatedTo, type Product } from '@/data';
 import { useCart } from '@/lib/cart';
+import { useWishlist } from '@/lib/wishlist';
 
 type Props = { product: Product; related: Product[] };
 
@@ -22,12 +23,13 @@ export const getStaticProps: GetStaticProps<Props> = async ({ params }) => {
 
 export default function ProductPage({ product, related }: Props) {
   const { add } = useCart();
+  const wishlist = useWishlist();
   const [size, setSize] = useState<string | null>(null);
   const [view, setView] = useState(0);
   const [added, setAdded] = useState(false);
   const [open, setOpen] = useState<string>('details');
-
-  const alternate = product.tone === 'dark' ? 'light' : 'dark';
+  const saved = wishlist.has(product.slug);
+  const gallery = product.images && product.images.length > 0 ? product.images : [undefined];
 
   function addToBag() {
     if (!size) return;
@@ -71,38 +73,39 @@ export default function ProductPage({ product, related }: Props) {
         <div className="pdp__grid">
           <div className="pdp__gallery">
             <div className="pdp__stage">
-              <Media
+              <Photo
+                images={product.images}
+                index={view}
                 silhouette={product.silhouette}
-                tone={view === 0 ? product.tone : alternate}
-                label={product.name}
+                tone={view === 0 ? product.tone : 'light'}
+                alt={view === 0 ? product.name : `${product.name}, view ${view + 1}`}
+                priority
+                sizes="(max-width: 860px) 100vw, 50vw"
               />
               {product.badge ? <span className="pdp__badge">{product.badge}</span> : null}
             </div>
-            <div className="pdp__thumbs">
-              {[product.tone, alternate].map((tone, index) => (
-                <button
-                  key={tone}
-                  type="button"
-                  className={`pdp__thumb${view === index ? ' is-active' : ''}`}
-                  onClick={() => setView(index)}
-                  aria-label={`View ${index + 1}`}
-                >
-                  <Media
-                    silhouette={product.silhouette}
-                    tone={tone as 'dark' | 'light'}
-                    label={`${product.name} view ${index + 1}`}
-                  />
-                </button>
-              ))}
-              <button
-                type="button"
-                className={`pdp__thumb${view === 2 ? ' is-active' : ''}`}
-                onClick={() => setView(2)}
-                aria-label="View detail"
-              >
-                <Media silhouette="scarf" tone={product.tone} label={`${product.name} detail`} />
-              </button>
-            </div>
+            {gallery.length > 1 ? (
+              <div className="pdp__thumbs">
+                {gallery.map((_, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    className={`pdp__thumb${view === index ? ' is-active' : ''}`}
+                    onClick={() => setView(index)}
+                    aria-label={`View ${index + 1} of ${gallery.length}`}
+                    aria-pressed={view === index}
+                  >
+                    <Photo
+                      images={product.images}
+                      index={index}
+                      silhouette={product.silhouette}
+                      tone={product.tone}
+                      alt=""
+                    />
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div className="pdp__info">
@@ -116,6 +119,16 @@ export default function ProductPage({ product, related }: Props) {
               {product.compareAt ? <span className="pdp__save">Reduced</span> : null}
             </p>
             <p className="pdp__desc">{product.description}</p>
+
+            <button
+              type="button"
+              className={saved ? 'pdp__wish is-saved' : 'pdp__wish'}
+              onClick={() => wishlist.toggle(product.slug)}
+              aria-pressed={saved}
+            >
+              <Heart filled={saved} />
+              <span>{saved ? 'Saved to wishlist' : 'Save to wishlist'}</span>
+            </button>
 
             <div className="pdp__block">
               <div className="pdp__row">

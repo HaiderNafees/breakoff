@@ -1,13 +1,11 @@
 import Link from 'next/link';
-import { useState } from 'react';
-import Media from '@/components/Media';
+import Photo from '@/components/Photo';
 import Seo from '@/components/Seo';
 import { formatPrice, getProduct } from '@/data';
 import { FREE_SHIPPING_THRESHOLD, useCart } from '@/lib/cart';
 
 export default function CartPage() {
   const { lines, subtotal, setQty, remove, count, ready } = useCart();
-  const [notice, setNotice] = useState('');
 
   const shipping = subtotal >= FREE_SHIPPING_THRESHOLD || subtotal === 0 ? 0 : 350;
   const remaining = Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal);
@@ -49,7 +47,13 @@ export default function CartPage() {
               return (
                 <article key={`${line.slug}-${line.size}`} className="cart__line">
                   <Link href={`/product/${product.slug}`} className="cart__thumb">
-                    <Media silhouette={product.silhouette} tone={product.tone} label={product.name} />
+                    <Photo
+                      images={product.images}
+                      silhouette={product.silhouette}
+                      tone={product.tone}
+                      alt={product.name}
+                      sizes="110px"
+                    />
                   </Link>
                   <div className="cart__detail">
                     <div className="cart__row">
@@ -104,14 +108,9 @@ export default function CartPage() {
               <span>Total</span>
               <span>{formatPrice(subtotal + shipping)}</span>
             </div>
-            <button
-              type="button"
-              className="btn btn--solid btn--block"
-              onClick={() => setNotice('Checkout is not connected to a payment provider yet.')}
-            >
+            <Link href="/checkout" className="btn btn--solid btn--block">
               Checkout
-            </button>
-            {notice ? <p className="cart__notice">{notice}</p> : null}
+            </Link>
             <Link href="/shop" className="link-underline cart__continue">
               Continue shopping
             </Link>

@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useAccount } from '@/lib/account';
 import { useCart } from '@/lib/cart';
+import { useWishlist } from '@/lib/wishlist';
 
 const NAV = [
   { href: '/shop?sort=new', label: 'New In' },
@@ -14,6 +16,8 @@ const NAV = [
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { count, ready } = useCart();
+  const { user, ready: accountReady } = useAccount();
+  const { count: wishCount, ready: wishReady } = useWishlist();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [email, setEmail] = useState('');
@@ -104,6 +108,42 @@ export default function Layout({ children }: { children: ReactNode }) {
               </button>
             </form>
 
+            <Link
+              href="/wishlist"
+              className="header__icon header__wish"
+              aria-label={`Wishlist, ${wishCount} saved`}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M12 20s-7.5-4.6-7.5-9.6A4.4 4.4 0 0 1 12 7.4a4.4 4.4 0 0 1 7.5 3C19.5 15.4 12 20 12 20Z"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span className="header__count" aria-hidden="true">
+                {wishReady ? wishCount : 0}
+              </span>
+            </Link>
+
+            <Link
+              href={accountReady && user ? '/account' : '/account/login'}
+              className="header__icon header__account"
+              aria-label={accountReady && user ? 'Your account' : 'Sign in'}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="8.4" r="3.6" fill="none" stroke="currentColor" strokeWidth="1.7" />
+                <path
+                  d="M4.8 20.2c0-3.6 3.2-5.6 7.2-5.6s7.2 2 7.2 5.6"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </Link>
+
             <Link href="/cart" className="header__icon header__bag" aria-label={`Bag, ${count} items`}>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path
@@ -138,6 +178,12 @@ export default function Layout({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="drawer__foot">
+          <Link href={user ? '/account' : '/account/login'} className="drawer__small">
+            {user ? 'My account' : 'Sign in'}
+          </Link>
+          <Link href="/wishlist" className="drawer__small">
+            Wishlist
+          </Link>
           <Link href="/care" className="drawer__small">
             Customer care
           </Link>
