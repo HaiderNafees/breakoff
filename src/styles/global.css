@@ -467,7 +467,6 @@ body {
 }
 
 .product-icon {
-  position: ab
   position: absolute;
   inset: 0;
   display: flex;
