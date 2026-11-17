@@ -1,8 +1,8 @@
 import crypto from 'node:crypto';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { body, methodNotAllowed, send } from '@/server/http';
-import { createSession, findUserByEmail, hashPassword, normaliseEmail, toPublicUser } from '@/server/auth';
-import { mutate, ordersFor, readStore } from '@/server/store';
+import { createSession, hashPassword, normaliseEmail, toPublicUser } from '@/server/auth';
+import { createUser, type StoredUser } from '@/server/store';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
@@ -20,25 +20,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return send(res, 400, { error: 'Use at least 6 characters for your password.' });
   }
 
-  const created = await mutate((data) => {
-    if (findUserByEmail(data, email)) return null;
-    const user = {
-      id: `u_${crypto.randomBytes(8).toString('hex')}`,
-      name,
-      email,
-      passwordHash: hashPassword(password),
-      createdAt: new Date().toISOString(),
-      addresses: [],
-    };
-    data.users.push(user);
-    return user;
-  });
+  const user: StoredUser = {
+    id: `u_${crypto.randomBytes(8).toString('hex')}`,
+    name,
+    email,
+    passwordHash: hashPassword(password),
+    createdAt: new Date().toISOString(),
+    addresses: [],
+  };
 
+  const created = await createUser(user);
   if (!created) {
     return send(res, 409, { error: 'An account with this email already exists.' });
   }
 
-  await createSession(res, created.id);
-  const data = await readStore();
-  send(res, 201, { user: toPublicUser(created, ordersFor(data, created.id)) });
+  await createSession(res, user.id);
+  send(res, 201, { user: toPublicUser(user, []) });
 }

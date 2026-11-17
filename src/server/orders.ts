@@ -1,8 +1,14 @@
 import crypto from 'node:crypto';
 import { getProduct } from '@/data';
 import { shippingFor } from '@/lib/shipping';
-import type { Address, DeliveryMethod, Order, OrderEvent, OrderStatus, PaymentMethod } from '@/lib/types';
-import { findOrder, mutate, type StoredOrder } from './store';
+import type { Address, DeliveryMethod, OrderEvent, OrderStatus, PaymentMethod } from '@/lib/types';
+import {
+  createOrder as insertOrder,
+  findOrder,
+  updateOrder,
+  updateUser,
+  type StoredOrder,
+} from './store';
 
 export type CheckoutLine = { slug: string; size: string; qty: number };
 
@@ -28,15 +34,12 @@ function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function orderNumber(existing: Set<string>): string {
+function orderNumber(): string {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  for (;;) {
-    const bytes = crypto.randomBytes(6);
-    const id = `BO-${Array.from(bytes)
-      .map((byte) => alphabet[byte % alphabet.length])
-      .join('')}`;
-    if (!existing.has(id)) return id;
-  }
+  const bytes = crypto.randomBytes(6);
+  return `BO-${Array.from(bytes)
+    .map((byte) => alphabet[byte % alphabet.length])
+    .join('')}`;
 }
 
 function trackingNumber(): string {
@@ -145,10 +148,11 @@ export async function createOrder(
   const shipping = shippingFor(subtotal, valid.delivery);
   const now = new Date().toISOString();
 
-  return mutate((data) => {
-    const used = new Set<string>(data.orders.map((order) => order.id));
-    const pending: StoredOrder = {
-      id: orderNumber(used),
+  // Order numbers are random, but a collision must never overwrite an order.
+  let pending: StoredOrder | null = null;
+  for (let attempt = 0; attempt < 8 && !pending; attempt += 1) {
+    const candidate: StoredOrder = {
+      id: orderNumber(),
       placedAt: now,
       lines: valid.lines,
       subtotal,
@@ -158,49 +162,57 @@ export async function createOrder(
       address: valid.address,
       delivery: valid.delivery,
       payment: valid.payment,
-      paymentStatus: valid.payment === 'cod' ? 'pending' : 'pending',
+      paymentStatus: 'pending',
       status: 'placed',
       events: [{ status: 'placed', at: now, note: 'Order received.' }],
       userId,
     };
-    data.orders.push(pending);
+    if (await insertOrder(candidate)) pending = candidate;
+  }
 
-    // Remember the delivery address for signed-in customers, replacing a
-    // matching one rather than piling up duplicates.
-    if (userId) {
-      const user = data.users.find((item) => item.id === userId);
-      if (user) {
-        const same = user.addresses.find(
-          (address) =>
-            address.line1.toLowerCase() === valid.address.line1.toLowerCase() &&
-            address.city.toLowerCase() === valid.address.city.toLowerCase()
-        );
-        if (same) {
-          user.addresses = user.addresses.map((address) => (address.id === same.id ? valid.address : address));
-        } else {
-          user.addresses = [...user.addresses, { ...valid.address, label: user.addresses.length ? 'Delivery' : 'Home' }];
-        }
+  if (!pending) {
+    return { error: 'We could not place the order. Please try again.' };
+  }
+
+  // Remember the delivery address for signed-in customers, replacing a matching
+  // one rather than piling up duplicates.
+  if (userId) {
+    const placed = valid.address;
+    await updateUser(userId, (user) => {
+      const same = user.addresses.find(
+        (address) =>
+          address.line1.toLowerCase() === placed.line1.toLowerCase() &&
+          address.city.toLowerCase() === placed.city.toLowerCase()
+      );
+      if (same) {
+        user.addresses = user.addresses.map((address) => (address.id === same.id ? placed : address));
+      } else {
+        user.addresses = [...user.addresses, { ...placed, label: user.addresses.length ? 'Delivery' : 'Home' }];
       }
-    }
+    });
+  }
 
-    return { order: pending };
-  });
+  return { order: pending };
 }
 
 /** Move an order along the tracking ladder, recording who did it and when. */
-export function advanceOrder(
+export async function advanceOrder(
   id: string,
   status: OrderStatus,
   note?: string,
   tracking?: string
 ): Promise<{ order: StoredOrder } | { error: string }> {
-  return mutate((data) => {
-    const order = findOrder(data, id);
-    if (!order) return { error: 'No order with that number.' };
-    if (order.status === status) return { order };
-    if (order.status === 'cancelled') return { error: 'This order was cancelled.' };
+  let refusal: string | null = null;
+
+  const updated = await updateOrder(id, (order) => {
+    if (order.status === status) return;
+    if (order.status === 'cancelled') {
+      refusal = 'This order was cancelled.';
+      return;
+    }
     if (status === 'delivered' && order.status !== 'out-for-delivery' && order.status !== 'dispatched') {
-      return { error: 'An order has to be dispatched before it can be delivered.' };
+      refusal = 'An order has to be dispatched before it can be delivered.';
+      return;
     }
 
     const at = new Date().toISOString();
@@ -214,14 +226,15 @@ export function advanceOrder(
     if (status === 'cancelled') order.paymentStatus = order.paymentStatus === 'paid' ? 'refunded' : 'unpaid';
     order.status = status;
     order.events = [...order.events, event];
-    return { order };
   });
+
+  if (!updated) return { error: 'No order with that number.' };
+  if (refusal) return { error: refusal };
+  return { order: updated };
 }
 
-export function markPaid(id: string, sessionId?: string): Promise<StoredOrder | null> {
-  return mutate((data) => {
-    const order = findOrder(data, id);
-    if (!order) return null;
+export async function markPaid(id: string, sessionId?: string): Promise<StoredOrder | null> {
+  return updateOrder(id, (order) => {
     const at = new Date().toISOString();
     if (sessionId) order.stripeSessionId = sessionId;
     order.paymentStatus = 'paid';
@@ -229,13 +242,13 @@ export function markPaid(id: string, sessionId?: string): Promise<StoredOrder | 
       order.events = [...order.events, { status: 'confirmed', at, note: 'Payment received through Stripe.' }];
       order.status = 'confirmed';
     }
-    return order;
   });
 }
 
-export function markPaymentFailed(id: string): Promise<void> {
-  return mutate((data) => {
-    const order = findOrder(data, id);
-    if (order && order.paymentStatus !== 'paid') order.paymentStatus = 'unpaid';
+export async function markPaymentFailed(id: string): Promise<void> {
+  const order = await findOrder(id);
+  if (!order || order.paymentStatus === 'paid') return;
+  await updateOrder(id, (current) => {
+    if (current.paymentStatus !== 'paid') current.paymentStatus = 'unpaid';
   });
 }

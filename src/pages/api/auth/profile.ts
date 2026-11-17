@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { body, methodNotAllowed, send } from '@/server/http';
 import { currentUser, userPayload } from '@/server/auth';
-import { mutate } from '@/server/store';
+import { updateUser } from '@/server/store';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'PATCH') return methodNotAllowed(res, ['PATCH']);
@@ -13,11 +13,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const name = typeof input.name === 'string' ? input.name.trim() : '';
   if (name.length < 2) return send(res, 400, { error: 'Name cannot be empty.' });
 
-  const updated = await mutate((data) => {
-    const user = data.users.find((item) => item.id === session.id);
-    if (!user) return null;
+  const updated = await updateUser(session.id, (user) => {
     user.name = name;
-    return user;
   });
 
   if (!updated) return send(res, 404, { error: 'Account not found.' });

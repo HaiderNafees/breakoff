@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { body, methodNotAllowed, send } from '@/server/http';
 import { currentUser, userPayload } from '@/server/auth';
-import { mutate } from '@/server/store';
+import { updateUser } from '@/server/store';
 import type { Address } from '@/lib/types';
 
 function text(value: unknown): string {
@@ -25,11 +25,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === 'DELETE') {
     const id = typeof req.query.id === 'string' ? req.query.id : '';
     if (!id) return send(res, 400, { error: 'Which address should be removed?' });
-    const user = await mutate((data) => {
-      const found = data.users.find((item) => item.id === session.id);
-      if (!found) return null;
+    const user = await updateUser(session.id, (found) => {
       found.addresses = found.addresses.filter((address) => address.id !== id);
-      return found;
     });
     if (!user) return send(res, 404, { error: 'Account not found.' });
     return send(res, 200, { user: await userPayload(user) });
@@ -55,14 +52,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return send(res, 400, { error: 'Enter a valid phone number.' });
   }
 
-  const user = await mutate((data) => {
-    const found = data.users.find((item) => item.id === session.id);
-    if (!found) return null;
+  const user = await updateUser(session.id, (found) => {
     const exists = found.addresses.some((item) => item.id === address.id);
     found.addresses = exists
       ? found.addresses.map((item) => (item.id === address.id ? address : item))
       : [...found.addresses, address];
-    return found;
   });
 
   if (!user) return send(res, 404, { error: 'Account not found.' });

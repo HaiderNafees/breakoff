@@ -1,14 +1,13 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { methodNotAllowed, send } from '@/server/http';
 import { currentUser } from '@/server/auth';
-import { findOrder, publicOrder, readStore } from '@/server/store';
+import { findOrder, publicOrder } from '@/server/store';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
 
   const id = typeof req.query.id === 'string' ? req.query.id : '';
-  const data = await readStore();
-  const order = findOrder(data, id);
+  const order = await findOrder(id);
   if (!order) return send(res, 404, { error: 'No order with that number.' });
 
   const session = await currentUser(req);

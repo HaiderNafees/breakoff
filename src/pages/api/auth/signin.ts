@@ -3,14 +3,13 @@ import { body, methodNotAllowed, send } from '@/server/http';
 import {
   clearAttempts,
   createSession,
-  findUserByEmail,
   normaliseEmail,
   recordFailedAttempt,
   tooManyAttempts,
   userPayload,
   verifyPassword,
 } from '@/server/auth';
-import { readStore } from '@/server/store';
+import { findUserByEmail } from '@/server/store';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
@@ -25,8 +24,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return send(res, 429, { error: 'Too many attempts. Try again in a few minutes.' });
   }
 
-  const data = await readStore();
-  const user = findUserByEmail(data, email);
+  const user = await findUserByEmail(email);
   if (!user || !verifyPassword(password, user.passwordHash)) {
     recordFailedAttempt(key);
     return send(res, 401, { error: user ? 'That password does not match.' : 'No account found with that email.' });

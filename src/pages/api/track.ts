@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { methodNotAllowed, send } from '@/server/http';
 import { currentUser } from '@/server/auth';
-import { findOrder, publicOrder, readStore } from '@/server/store';
+import { findOrder, publicOrder } from '@/server/store';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
@@ -10,8 +10,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const email = typeof req.query.email === 'string' ? req.query.email.trim().toLowerCase() : '';
   if (!number) return send(res, 400, { error: 'Enter an order number.' });
 
-  const data = await readStore();
-  const order = findOrder(data, number);
+  const order = await findOrder(number);
   if (!order) return send(res, 404, { error: 'No order with that number. Check the confirmation email.' });
 
   const session = await currentUser(req);

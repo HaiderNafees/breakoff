@@ -1,11 +1,12 @@
 import crypto from 'node:crypto';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import {
-  findUserByEmail,
-  mutate,
+  createSession as saveSession,
+  deleteSession as removeSession,
+  findSession,
+  getUser,
   ordersFor,
   publicOrder,
-  readStore,
   type StoredOrder,
   type StoredUser,
 } from './store';
@@ -54,15 +55,11 @@ export async function createSession(res: NextApiResponse, userId: string): Promi
   const token = crypto.randomBytes(32).toString('hex');
   const now = new Date();
   const expires = new Date(now.getTime() + SESSION_DAYS * 24 * 60 * 60 * 1000);
-  await mutate((data) => {
-    // prune expired sessions while we are here
-    data.sessions = data.sessions.filter((session) => session.expiresAt > now.toISOString());
-    data.sessions.push({
-      tokenHash: digestToken(token),
-      userId,
-      createdAt: now.toISOString(),
-      expiresAt: expires.toISOString(),
-    });
+  await saveSession({
+    tokenHash: digestToken(token),
+    userId,
+    createdAt: now.toISOString(),
+    expiresAt: expires.toISOString(),
   });
   res.setHeader('Set-Cookie', serialiseCookie(token, SESSION_DAYS * 24 * 60 * 60));
 }
@@ -70,10 +67,7 @@ export async function createSession(res: NextApiResponse, userId: string): Promi
 export async function destroySession(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   const token = req.cookies[SESSION_COOKIE];
   if (token) {
-    const hash = digestToken(token);
-    await mutate((data) => {
-      data.sessions = data.sessions.filter((session) => session.tokenHash !== hash);
-    });
+    await removeSession(digestToken(token));
   }
   res.setHeader('Set-Cookie', serialiseCookie('', 0));
 }
@@ -81,11 +75,10 @@ export async function destroySession(req: NextApiRequest, res: NextApiResponse):
 export async function currentUser(req: NextApiRequest): Promise<StoredUser | null> {
   const token = req.cookies[SESSION_COOKIE];
   if (!token) return null;
-  const data = await readStore();
-  const session = data.sessions.find((item) => item.tokenHash === digestToken(token));
+  const session = await findSession(digestToken(token));
   if (!session) return null;
   if (session.expiresAt <= new Date().toISOString()) return null;
-  return data.users.find((user) => user.id === session.userId) ?? null;
+  return getUser(session.userId);
 }
 
 export function toPublicUser(user: StoredUser, orders: StoredOrder[]): User {
@@ -100,8 +93,7 @@ export function toPublicUser(user: StoredUser, orders: StoredOrder[]): User {
 }
 
 export async function userPayload(user: StoredUser): Promise<User> {
-  const data = await readStore();
-  return toPublicUser(user, ordersFor(data, user.id));
+  return toPublicUser(user, await ordersFor(user.id));
 }
 
 /** Small in-memory brake on password guessing. Resets when the process does. */
@@ -134,4 +126,3 @@ export function normaliseEmail(value: unknown): string {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 
-export { findUserByEmail };
